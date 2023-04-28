@@ -17,6 +17,10 @@
 #endif
 
 struct MomoSampleConfig {
+  std::string video_device;
+  int fps = 15;
+  bool use_native = true;
+  bool hardware_encoder = false;
   std::string signaling_url;
   std::string channel_id;
   std::string role;
@@ -93,7 +97,9 @@ class MomoSample : public std::enable_shared_from_this<MomoSample>,
       sora::CameraDeviceCapturerConfig cam_config;
       cam_config.width = size.width;
       cam_config.height = size.height;
-      cam_config.fps = 30;
+      cam_config.fps = config_.fps;
+      cam_config.device_name = config_.video_device;
+      cam_config.use_native = config_.use_native;
       auto video_source = sora::CreateCameraDeviceCapturer(cam_config);
       if (video_source == nullptr) {
         RTC_LOG(LS_ERROR) << "Failed to create video source.";
@@ -137,7 +143,7 @@ class MomoSample : public std::enable_shared_from_this<MomoSample>,
     config.simulcast = config_.simulcast;
     config.data_channel_signaling = config_.data_channel_signaling;
     config.ignore_disconnect_websocket = config_.ignore_disconnect_websocket;
-    config.proxy_agent = "Momo Sample for Sora C++ SDK";
+    config.proxy_agent = "ROCS";
     config.proxy_url = config_.proxy_url;
     config.proxy_username = config_.proxy_username;
     config.proxy_password = config_.proxy_password;
@@ -288,6 +294,10 @@ int main(int argc, char* argv[]) {
 
   CLI::App app("Momo Sample for Sora C++ SDK");
 
+  app.add_option("--native", config.use_native, "Enable NVJPEG (default: true)");
+  app.add_option("--hardware-encoder", config.hardware_encoder, "Enable HW Encorder (default: false)");
+  app.add_option("--video-device", config.video_device, "Video Device");
+  app.add_option("--fps", config.fps, "Video Frame rate")->check(CLI::Range(1, 60));
   int log_level = (int)rtc::LS_ERROR;
   auto log_level_map = std::vector<std::pair<std::string, int>>(
       {{"verbose", 0}, {"info", 1}, {"warning", 2}, {"error", 3}, {"none", 4}});
@@ -368,9 +378,14 @@ int main(int argc, char* argv[]) {
     rtc::LogMessage::LogThreads();
   }
 
+  if (config.hardware_encoder == false) {
+    config.use_hardware_encoder = false;
+  }
+  
   auto context =
       sora::SoraClientContext::Create(sora::SoraClientContextConfig());
   auto momosample = std::make_shared<MomoSample>(context, config);
+
   momosample->Run();
 
   return 0;
